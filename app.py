@@ -1,15 +1,19 @@
 import os
 from flask import Flask, request, jsonify, render_template
 from pypdf import PdfReader
-import google.generativeai as genai
 from dotenv import load_dotenv
+import openai
 import re
 
+# Load environment variables
 load_dotenv()
-GEMINI_API_KEY=os.getenv("Genkey")
+OPENAI_API_KEY = os.getenv("Genkey")
 
-app=Flask(__name__)
-genai.configure(api_key=GEMINI_API_KEY)
+# Configure OpenAI
+openai.api_key = OPENAI_API_KEY
+
+# Flask app
+app = Flask(__name__)
 
 def extract_text_from_pdf(file_stream):
     reader = PdfReader(file_stream)
@@ -19,16 +23,23 @@ def extract_text_from_pdf(file_stream):
 def extract_keywords(text):
     return set(re.findall(r"\b[a-zA-Z]{3,}\b", text.lower()))
 
-def get_gemini_suggestions(resume_text, jd_text, missing_keywords):
+def get_chatgpt_suggestions(resume_text, jd_text, missing_keywords):
     prompt = (
-        f"My resume is:\n{resume_text[:3000]}\n\n"
-        f"The job description is:\n{jd_text[:2000]}\n\n"
-        f"These keywords are missing from my resume: {', '.join(missing_keywords)}.\n"
-        "Suggest bullet points I could add to improve alignment."
+        f"My resume:\n{resume_text[:3000]}\n\n"
+        f"Job description:\n{jd_text[:2000]}\n\n"
+        f"These keywords are missing: {', '.join(missing_keywords)}.\n"
+        "Suggest a few bullet points I can add to improve alignment."
     )
-    model = genai.GenerativeModel("gemini-pro")
-    response = model.generate_content(prompt)
-    return response.text.strip()
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  # or "gpt-4" if you have access
+        messages=[
+            {"role": "system", "content": "You are an expert resume reviewer."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7
+    )
+    return response['choices'][0]['message']['content'].strip()
 
 @app.route('/')
 def home():
@@ -47,7 +58,7 @@ def check_ats():
     jd_keywords = extract_keywords(jd_text)
     missing = sorted(list(jd_keywords - resume_keywords))
     score = int((len(jd_keywords & resume_keywords) / len(jd_keywords)) * 100) if jd_keywords else 0
-    suggestions = get_gemini_suggestions(resume_text, jd_text, missing)
+    suggestions = get_chatgpt_suggestions(resume_text, jd_text, missing)
 
     return jsonify({
         'score': score,
