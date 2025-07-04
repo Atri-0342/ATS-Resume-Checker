@@ -3,3 +3,4 @@ pypdf
 google-generativeai
 python-dotenv
 gunicorn
+openai
