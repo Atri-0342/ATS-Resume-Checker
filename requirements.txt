@@ -1,6 +1,6 @@
 flask
 pypdf
-google-generativeai
 python-dotenv
 gunicorn
-openai
+openai>=1.0.0
+
