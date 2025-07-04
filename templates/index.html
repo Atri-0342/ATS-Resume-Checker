@@ -81,7 +81,7 @@
       formData.append('resume', document.getElementById('resume').files[0]);
       formData.append('jobdesc', document.getElementById('jobdesc').value);
 
-      const response = await fetch('http://localhost:5000/check', {
+      const response = await fetch('/check', {
         method: 'POST',
         body: formData
       });
