@@ -2,35 +2,36 @@ import os
 from flask import Flask, request, jsonify, render_template
 from pypdf import PdfReader
 from dotenv import load_dotenv
+from openai import OpenAI
 import re
 
 # Load environment variables
 load_dotenv()
-from openai import OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+OPENAI_API_KEY = os.getenv("Genkey")
 
-# Configure OpenAI
-openai.api_key = OPENAI_API_KEY
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Flask app
+# Initialize Flask app
 app = Flask(__name__)
 
+# Extract text from PDF
 def extract_text_from_pdf(file_stream):
     reader = PdfReader(file_stream)
     text = "\n".join([page.extract_text() or "" for page in reader.pages])
     return text
 
+# Extract meaningful keywords (minimum 3-letter words)
 def extract_keywords(text):
     return set(re.findall(r"\b[a-zA-Z]{3,}\b", text.lower()))
 
-
-
+# Get suggestions using OpenAI's ChatGPT
 def get_chatgpt_suggestions(resume_text, jd_text, missing_keywords):
     prompt = (
         f"My resume:\n{resume_text[:3000]}\n\n"
         f"Job description:\n{jd_text[:2000]}\n\n"
-        f"These keywords are missing: {', '.join(missing_keywords)}.\n"
-        "Suggest a few bullet points I can add to improve alignment."
+        f"These keywords are missing from my resume: {', '.join(missing_keywords)}.\n"
+        "Suggest 2–3 bullet points I can add to better match the job."
     )
 
     response = client.chat.completions.create(
@@ -43,10 +44,12 @@ def get_chatgpt_suggestions(resume_text, jd_text, missing_keywords):
     )
     return response.choices[0].message.content.strip()
 
+# Serve HTML form
 @app.route('/')
 def home():
     return render_template('index.html')
 
+# API endpoint for ATS check
 @app.route('/check', methods=['POST'])
 def check_ats():
     resume_file = request.files.get('resume')
@@ -59,7 +62,8 @@ def check_ats():
     resume_keywords = extract_keywords(resume_text)
     jd_keywords = extract_keywords(jd_text)
     missing = sorted(list(jd_keywords - resume_keywords))
-    score = int((len(jd_keywords & resume_keywords) / len(jd_keywords)) * 100) if jd_keywords else 0
+    matched = jd_keywords & resume_keywords
+    score = int((len(matched) / len(jd_keywords)) * 100) if jd_keywords else 0
     suggestions = get_chatgpt_suggestions(resume_text, jd_text, missing)
 
     return jsonify({
